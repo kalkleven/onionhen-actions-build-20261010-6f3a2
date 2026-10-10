@@ -24,6 +24,19 @@ jobs:
           test -n "$SDK_ROOT" && test -x "$SDK_ROOT/bin/prospero-cmake"
           echo "PS5_PAYLOAD_SDK=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "LLVM_CONFIG=/usr/bin/llvm-config-18" >> "$GITHUB_ENV"
+      - name: Install PacBrew PS5 libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/ps5-payload-dev.tar.gz"
+          curl -fL --retry 3 https://github.com/ps5-payload-dev/pacbrew-repo/releases/download/v0.40.2/ps5-payload-dev.tar.gz -o "$archive"
+          echo "a85f65de418a8e6a898c6c3e3c870d50fff7618a200e4dd59ea9692af6ecec4d  $archive" | sha256sum --check -
+          mkdir -p "$RUNNER_TEMP/pacbrew" "$PS5_PAYLOAD_SDK/target/user/homebrew"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/pacbrew" opt/ps5-payload-sdk/target/user/homebrew
+          cp -a "$RUNNER_TEMP/pacbrew/opt/ps5-payload-sdk/target/user/homebrew/." "$PS5_PAYLOAD_SDK/target/user/homebrew/"
+          test -f "$PS5_PAYLOAD_SDK/target/user/homebrew/include/curl/curl.h"
+          test -f "$PS5_PAYLOAD_SDK/target/user/homebrew/lib/libcurl.a"
+          test -s "$PS5_PAYLOAD_SDK/target/user/homebrew/etc/ca-bundle.crt"
       - name: Apply feature patch
         shell: bash
         run: |
@@ -40,7 +53,7 @@ jobs:
           test -s "$ELF"
           file "$ELF"
           readelf -h "$ELF" | tee "$RUNNER_TEMP/elf-header.txt"
-          test "$(head -c 4 "$ELF" | od -An -t x1 | tr -d ' \n')" = 7f454c46
+          test "$(head -c 4 "$ELF" | od -An -t x1 | tr -d ' ')" = 7f454c46
           grep -q 'Class:.*ELF64' "$RUNNER_TEMP/elf-header.txt"
       - uses: actions/upload-artifact@v4
         with:
