@@ -12,7 +12,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-18 lld-18 llvm-18-dev cmake ninja-build python3 python3-pyelftools xz-utils unzip curl file binutils
+          sudo apt-get install -y clang-18 lld-18 llvm-18-dev cmake ninja-build python3 python3-pyelftools xz-utils unzip curl file binutils librsvg2-bin
       - name: Download PS5 Payload SDK
         shell: bash
         run: |
