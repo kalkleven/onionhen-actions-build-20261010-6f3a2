@@ -32,7 +32,7 @@ jobs:
       - name: Install archive and ELF inspection tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y binutils file unzip xz-utils
+          sudo apt-get install -y autoconf automake binutils clang-18 file lld-18 llvm-18-dev libtool libtool-bin pkg-config unzip xz-utils
 
       - name: Download and verify Zig 0.14.1
         shell: bash
@@ -145,16 +145,109 @@ jobs:
             sha256sum "$destination"
           }
 
-          for library in z curl wolfssl minizip microhttpd psl zstd; do
+          for library in z curl minizip microhttpd psl zstd; do
             copy_library "lib$library.a" "$source_dir/lib/lib$library.a"
           done
           for library in crypto ssl sqlite3; do
             copy_library "lib$library.a" "$dependencies_dir/lib/lib$library.a"
           done
 
-      - name: Verify every pinned build input
+          wolfssl_archive="$RUNNER_TEMP/wolfssl-v5.7.2-stable.tar.gz"
+          wolfssl_dir="$RUNNER_TEMP/wolfssl-v5.7.2-stable"
+          curl --fail --location --retry 3 \
+            --output "$wolfssl_archive" \
+            "https://github.com/wolfSSL/wolfssl/archive/refs/tags/v5.7.2-stable.tar.gz"
+          echo "0f2ed82e345b833242705bbc4b08a2a2037a33f7bf9c610efae6464f6b10e305  $wolfssl_archive" | sha256sum --check -
+          mkdir -p "$wolfssl_dir"
+          tar -xzf "$wolfssl_archive" -C "$wolfssl_dir" --strip-components=1
+
+          (
+            cd "$wolfssl_dir"
+            ./autogen.sh
+            source "$PS5_PAYLOAD_SDK/toolchain/prospero.sh"
+            ./configure \
+              --prefix="\${PREFIX}" \
+              --host=x86_64-pc-freebsd \
+              --enable-static \
+              --disable-shared \
+              --enable-opensslextra
+            make -j2
+            make DESTDIR="$PS5_PAYLOAD_SDK/target" install
+          )
+          copy_library libwolfssl.a "$source_dir/lib/libwolfssl.a"
+
+      - name: Verify payload assets and record actual build inputs
         working-directory: upstream/etaHEN
-        run: node scripts/check-build-inputs.mjs
+        run: |
+          node --input-type=module <<'NODE'
+          import {createHash} from 'node:crypto';
+          import {execFileSync} from 'node:child_process';
+          import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
+
+          const manifest = JSON.parse(readFileSync('BUILD-INPUTS.json', 'utf8'));
+          const assetEntries = manifest.inputs.filter((entry) => entry.path.includes('/assets/'));
+          if (assetEntries.length !== 4) {
+            throw new Error('Expected the four upstream payload assets in BUILD-INPUTS.json');
+          }
+
+          const hashFile = (file) => {
+            const bytes = readFileSync(file);
+            return {bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex')};
+          };
+          for (const entry of assetEntries) {
+            const actual = hashFile(entry.path);
+            if (actual.bytes !== entry.bytes || actual.sha256 !== entry.sha256) {
+              throw new Error(entry.path + ' does not match the upstream pinned payload asset');
+            }
+          }
+
+          const libraryEntries = manifest.inputs.filter((entry) => entry.path.endsWith('.a'));
+          if (libraryEntries.length !== 10) {
+            throw new Error('Expected ten static libraries in BUILD-INPUTS.json');
+          }
+          const installedLibraries = libraryEntries.map((entry) => {
+            const actual = hashFile(entry.path);
+            if (actual.bytes === 0) throw new Error(entry.path + ' is empty');
+            return {path: entry.path, ...actual};
+          });
+
+          const provenance = {
+            schemaVersion: 1,
+            source: {
+              repository: 'GronedWaffel/etahen-11.00-13.60',
+              tag: 'v2.5B-13.60-r3',
+              commit: 'f59d709228954918e61e8e1b7e64d4b70b24be2f',
+              overlayRepository: process.env.GITHUB_REPOSITORY,
+              overlayCommit: process.env.GITHUB_SHA,
+              workflowRun: process.env.GITHUB_RUN_ID
+            },
+            toolchain: {
+              runner: 'ubuntu-24.04',
+              node: process.version,
+              zig: execFileSync(process.env.ZIG, ['version'], {encoding: 'utf8'}).trim(),
+              ps5PayloadSdk: 'v0.43'
+            },
+            dependencyBundles: [
+              {
+                name: 'PS5 Payload Dev homebrew libraries',
+                version: 'v0.40.2',
+                sha256: 'a85f65de418a8e6a898c6c3e3c870d50fff7618a200e4dd59ea9692af6ecec4d'
+              },
+              {
+                name: 'WolfSSL',
+                version: 'v5.7.2-stable',
+                sourceArchiveSha256: '0f2ed82e345b833242705bbc4b08a2a2037a33f7bf9c610efae6464f6b10e305',
+                buildRecipe: './autogen.sh; PS5 Payload SDK prospero.sh; configure --enable-static --disable-shared --enable-opensslextra'
+              }
+            ],
+            verifiedPayloadAssets: assetEntries.map((entry) => ({path: entry.path, bytes: entry.bytes, sha256: entry.sha256})),
+            installedStaticLibraries: installedLibraries
+          };
+
+          mkdirSync('build', {recursive: true});
+          writeFileSync('build/ci-inputs.json', JSON.stringify(provenance, null, 2) + '\n');
+          console.log('Verified four upstream payload assets and recorded ten static-library hashes in build/ci-inputs.json');
+          NODE
 
       - name: Build patched etaHEN ELF
         working-directory: upstream/etaHEN
@@ -179,6 +272,7 @@ jobs:
           path: |
             upstream/etaHEN/build/etaHEN-13.60-debug-settings.elf
             upstream/etaHEN/build/manifest.json
+            upstream/etaHEN/build/ci-inputs.json
             upstream/etaHEN/BUILD-INPUTS.json
           if-no-files-found: error
           retention-days: 30
@@ -186,12 +280,13 @@ jobs:
       - name: Publish public prerelease with direct ELF download
         shell: bash
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           elf="upstream/etaHEN/build/etaHEN-13.60-debug-settings.elf"
           manifest="upstream/etaHEN/build/manifest.json"
           input_manifest="upstream/etaHEN/BUILD-INPUTS.json"
+          ci_manifest="upstream/etaHEN/build/ci-inputs.json"
           credits="$RUNNER_TEMP/CREDITS.md"
           short_sha="$(printf '%s' "$GITHUB_SHA" | cut -c1-7)"
           tag="v2.5B-13.60-debug-settings-$short_sha-run$GITHUB_RUN_ATTEMPT"
@@ -201,10 +296,12 @@ jobs:
 
           This build includes the 13.60 Debug Settings route overlay. It was compiled and host-checked in GitHub Actions. It has not been tested on a PS5 console.
 
-          Source and build-input details: https://github.com/$GITHUB_REPOSITORY/tree/$GITHUB_SHA
+          Build provenance and payload hashes: see ci-inputs.json and BUILD-INPUTS.json in the repository and attached assets.
+
+Source: https://github.com/$GITHUB_REPOSITORY/tree/$GITHUB_SHA
           EOF
 
-          gh release create "$tag" "$elf" "$manifest" "$input_manifest" "$credits" \
+          gh release create "$tag" "$elf" "$manifest" "$ci_manifest" "$input_manifest" "$credits" \
             --repo "$GITHUB_REPOSITORY" \
             --title "etaHEN 2.5B 13.60 Debug Settings ($short_sha)" \
             --notes-file "$notes" \
