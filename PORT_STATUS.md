@@ -4,6 +4,14 @@
 
 Official etaHEN 2.5B documents the etaHEN Toolbox as replacing Debug Settings and provides a custom Game Options menu, including a beta Game/App dumper entry. The community multi-firmware reference uses the legacy Debug Settings route for 11.00 and later and also has a separate home-screen Toolbox card. Preserve the official 2.5B menu behavior as the target.
 
+## Applied compatibility slice
+
+The tracked overlay at `patches/13.42/offsets.patch` adds a 13.42 profile to the official source's `libhijacker` offset lookups for allproc, security flags, QA flags, user-token flags, and root vnode. Values were adapted from the pinned community source reference and are identified in the patch header.
+
+`scripts/codex-cloud-setup.sh` applies the overlay to the pinned etaHEN submodule. The host-side test `tests/test_1342_offsets.sh` compiles the actual patched `offsets.cpp` against a stubbed firmware-version query. It passed for 13.42 and confirmed 13.43 remains unsupported.
+
+This is one compatibility layer only. It does not adapt startup, kstuff, ShellUI hooks, Toolbox routing, Settings bundle behavior, or Game Options. No PS5 target build or console test has been performed. The reference manifest itself marks its 13.42 profile as not hardware-confirmed.
+
 ## Compatibility reference
 
 A code-only reference is pinned at `references/etaHEN-13.42-reference`:
@@ -24,10 +32,10 @@ The prior main-branch head was 19ce374aeb808a6ccd61db6522a9cdb10ff60cb4. Git his
 ## Remaining work
 
 - [x] Pin official etaHEN 2.5B and a 13.42 source reference.
-- [ ] Compare the reference's startup, kernel-profile, ShellUI, and dependency changes against official 2.5B.
-- [ ] Implement only the required 13.42 compatibility changes while preserving the official 2.5B feature set.
-- [ ] Add source tests for exact firmware selection and menu routing.
+- [x] Add and host-test the reference-derived 13.42 libhijacker profile overlay.
+- [ ] Compare and adapt required startup, kstuff, ShellUI, and dependency changes while preserving official features.
+- [ ] Port and test the Toolbox route and per-game Game Options path on source.
 - [ ] Build with the PS5 Payload SDK and record the build output.
 - [ ] Test Toolbox and per-game options on a real 13.42 console and record the result.
 
-Current status: the repository now has both source baselines for review. No compatibility code has yet been applied to the official source, and no 13.42 payload build or console test is included.
+Current status: a focused offset overlay is in the repository and its host test passes. There is not yet a complete 13.42 payload, and no PS5 build or hardware test is included.

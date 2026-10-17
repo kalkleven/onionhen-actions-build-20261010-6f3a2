@@ -14,7 +14,7 @@ This workbench pins the unofficial etaHEN 2.5B multi-firmware source at commit `
 
 Keep official etaHEN 2.5B as the source and feature baseline. Use the reference to identify the compatibility changes needed for 13.42. Do not adopt its separate Toolbox card, added plugin/FPS features, altered menu assets, or binaries unless the user asks for them.
 
-Any compatibility patch must state which reference files it adapts, preserve applicable GPL notices/attribution, add a host-side regression test where practical, and remain marked experimental until a real 13.42 console test is reported.
+The first overlay adapts only the 13.42 libhijacker profile fields used by offsets.cpp. It preserves upstream firmware cases, is applied by the setup script, and has a host-side regression test. Startup, kstuff, and ShellUI compatibility still need separate changes. Keep the overlay experimental until a real 13.42 console test is reported.
 
 ## Sources
 

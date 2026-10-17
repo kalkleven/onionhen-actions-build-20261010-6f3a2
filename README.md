@@ -10,7 +10,9 @@ The official source is pinned at etaHEN tag 2.5B, commit 5061a85312eb1d2da811269
 - FEATURES.md: upstream feature checklist for your console testing
 - PORT_STATUS.md: current evidence and remaining 13.42 work
 - PORT_REFERENCE.md: notes on the pinned 13.42 compatibility reference
-- scripts/codex-cloud-setup.sh: initialize both source repositories and check build tools
+- patches/13.42/offsets.patch: experimental 13.42 profile overlay for libhijacker
+- tests/test_1342_offsets.sh: host test for 13.42 profile selection and unsupported-version rejection
+- scripts/codex-cloud-setup.sh: initialize both source repositories, apply the overlay, and check build tools
 - upstream/etaHEN: official etaHEN 2.5B source baseline
 - references/etaHEN-13.42-reference: pinned community compatibility reference
 
@@ -20,7 +22,7 @@ Clone with submodules enabled, or run:
 
     bash scripts/codex-cloud-setup.sh
 
-The script initializes both source repositories and reports whether CMake, Ninja, Clang, xz, and PS5_PAYLOAD_SDK are available. It does not download a proprietary SDK or claim that the payload is ready for hardware.
+The script initializes both source repositories, applies the small 13.42 libhijacker profile overlay, and runs its host-side profile test when g++ is available. It reports whether CMake, Ninja, Clang, xz, and PS5_PAYLOAD_SDK are available. The overlay does not complete the port or produce a payload.
 
 ## Create the Codex Cloud environment
 
@@ -32,6 +34,6 @@ Review the setup result and publish the environment. After it is published, open
 
 ## Scope and testing
 
-The checklist records features documented by official etaHEN 2.5B. The community reference contains a 13.42 firmware profile, but its own manifest marks that profile as not hardware-confirmed. No 13.42 payload build or console test is included here yet.
+The checklist records features documented by official etaHEN 2.5B. The tracked overlay adds only the reference-derived libhijacker offsets for 13.42; the reference manifest marks that profile as not hardware-confirmed. Startup, kstuff, ShellUI routing, and the Game Options path still need porting and validation. No 13.42 payload build or console test is included here yet.
 
 Use the upstream project license and notices in upstream/etaHEN/LICENSE. Keep compatibility changes small, attributed, and reviewable.
