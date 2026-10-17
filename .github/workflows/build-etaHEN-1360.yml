@@ -188,73 +188,112 @@ jobs:
           set -euo pipefail
           mkdir -p "$GITHUB_WORKSPACE/upstream/etaHEN/Source Code/util/assets"
           python3 - "$RUNNER_TEMP/etaHEN-13.60-original.elf" "$GITHUB_WORKSPACE/upstream/etaHEN/Source Code/util/assets/elfldr.elf" <<'PY'
-          import os
           import struct
           import sys
 
           source, destination = sys.argv[1:3]
           data = open(source, 'rb').read()
-          if len(data) < 64 or data[:4] != b'\x7fELF' or data[4] != 2 or data[5] != 1:
-              raise SystemExit('Pinned release is not a little-endian ELF64 file')
-          if struct.unpack_from('<H', data, 18)[0] != 62:
-              raise SystemExit('Pinned release ELF is not x86-64')
-
-          shoff = struct.unpack_from('<Q', data, 40)[0]
-          shentsize, shnum = struct.unpack_from('<HH', data, 58)
-          if shentsize < 64 or shoff + shentsize * shnum > len(data):
-              raise SystemExit('Release ELF has an invalid section table')
-
-          sections = []
-          for index in range(shnum):
-              entry = struct.unpack_from('<IIQQQQIIQQ', data, shoff + index * shentsize)
-              sections.append({
-                  'type': entry[1], 'addr': entry[3], 'offset': entry[4],
-                  'size': entry[5], 'link': entry[6], 'entsize': entry[9]
-              })
-
           wanted = {'elfldr_start', 'elfldr_end', 'elfldr_size'}
-          symbols = {}
-          for section in sections:
-              if section['type'] not in (2, 11) or section['entsize'] < 24:
-                  continue
-              strings_section = sections[section['link']]
-              strings = data[strings_section['offset']:strings_section['offset'] + strings_section['size']]
-              count = section['size'] // section['entsize']
-              for index in range(count):
-                  offset = section['offset'] + index * section['entsize']
-                  name_offset, info, other, shndx, value, size = struct.unpack_from('<IBBHQQ', data, offset)
-                  if shndx == 0 or name_offset >= len(strings):
+
+          def embedded_helper(blob, base):
+              if base + 64 > len(blob) or blob[base:base + 4] != b'\x7fELF':
+                  return None
+              if blob[base + 4] != 2 or blob[base + 5] != 1:
+                  return None
+              if struct.unpack_from('<H', blob, base + 18)[0] != 62:
+                  return None
+
+              shoff = struct.unpack_from('<Q', blob, base + 40)[0]
+              shentsize, shnum = struct.unpack_from('<HH', blob, base + 58)
+              if shoff == 0 or shentsize < 64 or base + shoff + shentsize * shnum > len(blob):
+                  return None
+
+              sections = []
+              for index in range(shnum):
+                  values = struct.unpack_from('<IIQQQQIIQQ', blob, base + shoff + index * shentsize)
+                  sections.append({
+                      'type': values[1], 'addr': values[3], 'offset': values[4],
+                      'size': values[5], 'link': values[6], 'entsize': values[9]
+                  })
+
+              symbols = {}
+              for section in sections:
+                  if section['type'] not in (2, 11) or section['entsize'] < 24:
                       continue
-                  end = strings.find(b'\0', name_offset)
-                  name = strings[name_offset:end].decode('utf-8', errors='replace')
-                  if name in wanted:
-                      symbols[name] = (value, shndx, size)
+                  if section['link'] >= len(sections):
+                      continue
+                  strings_section = sections[section['link']]
+                  strings_start = base + strings_section['offset']
+                  strings_end = strings_start + strings_section['size']
+                  table_start = base + section['offset']
+                  table_end = table_start + section['size']
+                  if strings_end > len(blob) or table_end > len(blob):
+                      continue
+                  strings = blob[strings_start:strings_end]
+                  count = section['size'] // section['entsize']
+                  for index in range(count):
+                      offset = table_start + index * section['entsize']
+                      name_offset, info, other, shndx, value, size = struct.unpack_from('<IBBHQQ', blob, offset)
+                      if shndx == 0 or name_offset >= len(strings):
+                          continue
+                      name_end = strings.find(b'\0', name_offset)
+                      if name_end < 0:
+                          continue
+                      name = strings[name_offset:name_end].decode('utf-8', errors='replace')
+                      if name in wanted:
+                          symbols[name] = (value, shndx, size)
 
-          if not wanted.issubset(symbols):
-              raise SystemExit('Release ELF does not retain the elfldr_start/end/size symbols needed to extract its helper')
+              if not wanted.issubset(symbols):
+                  return None
 
-          start, start_section, _ = symbols['elfldr_start']
-          end, end_section, _ = symbols['elfldr_end']
-          size_value, size_section, _ = symbols['elfldr_size']
-          if start_section != end_section or start_section != size_section:
-              raise SystemExit('Embedded ELF loader symbols are not in the same section')
-          section = sections[start_section]
-          if section['type'] == 8 or not (section['addr'] <= start < end <= section['addr'] + section['size']):
-              raise SystemExit('Embedded ELF loader bounds are invalid')
+              start_value, start_section, _ = symbols['elfldr_start']
+              end_value, end_section, _ = symbols['elfldr_end']
+              size_value, size_section, _ = symbols['elfldr_size']
+              if start_section != end_section or start_section != size_section:
+                  return None
+              section = sections[start_section]
+              section_end = section['addr'] + section['size']
+              if section['type'] == 8 or not (section['addr'] <= start_value < end_value <= section_end):
+                  return None
+              if size_value < section['addr'] or size_value + 4 > section_end:
+                  return None
 
-          file_start = section['offset'] + start - section['addr']
-          file_end = section['offset'] + end - section['addr']
-          size_file_offset = section['offset'] + size_value - section['addr']
-          embedded = data[file_start:file_end]
-          declared_size = struct.unpack_from('<I', data, size_file_offset)[0]
-          if len(embedded) != declared_size or embedded[:4] != b'\x7fELF':
-              raise SystemExit('Extracted utility loader does not match its embedded ELF size or magic')
-          if len(embedded) > 128 * 1024 * 1024:
-              raise SystemExit('Extracted utility loader is unexpectedly large')
+              file_start = base + section['offset'] + start_value - section['addr']
+              file_end = base + section['offset'] + end_value - section['addr']
+              size_file_offset = base + section['offset'] + size_value - section['addr']
+              if file_end > len(blob) or size_file_offset + 4 > len(blob):
+                  return None
+              embedded = blob[file_start:file_end]
+              declared_size = struct.unpack_from('<I', blob, size_file_offset)[0]
+              if len(embedded) != declared_size or len(embedded) < 64:
+                  return None
+              if embedded[:4] != b'\x7fELF' or embedded[4] != 2 or embedded[5] != 1:
+                  return None
+              if struct.unpack_from('<H', embedded, 18)[0] != 62 or len(embedded) > 128 * 1024 * 1024:
+                  return None
+              return embedded
+
+          if len(data) < 64 or data[:4] != b'\x7fELF':
+              raise SystemExit('Pinned original release is not an ELF file')
+          helper = embedded_helper(data, 0)
+          helper_offset = 0 if helper is not None else None
+          if helper is None:
+              offset = 1
+              while True:
+                  offset = data.find(b'\x7fELF', offset)
+                  if offset < 0:
+                      break
+                  helper = embedded_helper(data, offset)
+                  if helper is not None:
+                      helper_offset = offset
+                      break
+                  offset += 1
+          if helper is None:
+              raise SystemExit('Could not locate the embedded utility ELF with its elfldr helper symbols')
 
           with open(destination, 'wb') as output:
-              output.write(embedded)
-          print('Recovered the original embedded utility ELF loader:', len(embedded), 'bytes')
+              output.write(helper)
+          print('Recovered utility loader from nested ELF at offset', helper_offset, ':', len(helper), 'bytes')
           PY
 
       - name: Verify payload assets and record actual build inputs
