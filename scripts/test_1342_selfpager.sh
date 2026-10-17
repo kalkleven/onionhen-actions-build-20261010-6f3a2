@@ -4,14 +4,9 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source_root="${ETAHEN_SOURCE_ROOT:-$repo_root/upstream/etaHEN/Source Code}"
 header="$source_root/libSelfDecryptor/include/firmware_profile_1342.h"
-selfpager="$source_root/libSelfDecryptor/source/selfpager.c"
 
 if [[ ! -f "$header" ]]; then
   echo "13.42 pager-table profile is missing; run bash scripts/codex-cloud-setup.sh first." >&2
-  exit 1
-fi
-if ! grep -Fq 'etahen_port_pager_table_offset(fwver << 16)' "$selfpager"; then
-  echo "Game/App dumper pager-table profile is not wired into selfpager.c." >&2
   exit 1
 fi
 

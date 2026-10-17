@@ -73,6 +73,27 @@ else
   echo "Applied experimental 13.42 Game/App dumper pager-table overlay."
 fi
 
+boot_abi_header="$source_dir/shellui/include/port_boot_abi.hpp"
+mono_abi_header="$source_dir/shellui/include/port_mono_abi.hpp"
+hooked_funcs="$source_dir/shellui/include/HookedFuncs.hpp"
+prx_source="$source_dir/shellui/src/prx.cpp"
+boot_abi_patch="$repo_root/patches/13.42/boot-abi.patch"
+if [[ -f "$boot_abi_header" ]]; then
+  if [[ ! -f "$mono_abi_header" ]] ||
+     ! grep -Fq '#include "port_boot_abi.hpp"' "$prx_source" ||
+     ! grep -Fq 'uri_boot_hook_nullable' "$hooked_funcs" ||
+     ! grep -Fq 'uri_boot_hook_nullable' "$source_dir/shellui/src/HookFunctions.cpp" ||
+     ! grep -Fq 'port_boot_abi(count,' "$prx_source"; then
+    echo "The ShellUI Boot ABI headers exist, but the runtime selector is incomplete." >&2
+    exit 1
+  fi
+  echo "13.42 ShellUI Boot ABI overlay already applied."
+else
+  git -C "$upstream_repo" apply --check --directory="Source Code" "$boot_abi_patch"
+  git -C "$upstream_repo" apply --directory="Source Code" "$boot_abi_patch"
+  echo "Applied experimental ShellUI Boot ABI overlay."
+fi
+
 echo "etaHEN submodule commit: $actual_upstream"
 echo "Checking build tools:"
 for tool in cmake ninja clang clang++ xz; do
@@ -86,6 +107,7 @@ done
 if command -v g++ >/dev/null 2>&1; then
   bash "$repo_root/scripts/test_1342_offsets.sh"
   bash "$repo_root/scripts/test_1342_route.sh"
+  bash "$repo_root/scripts/test_1342_boot_abi.sh"
 else
   echo "Skipping C++ host tests: g++ is not installed."
 fi

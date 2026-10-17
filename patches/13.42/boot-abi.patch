@@ -1,0 +1,315 @@
+--- /dev/null
++++ b/shellui/include/port_boot_abi.hpp
+@@ -0,0 +1,52 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Managed Boot signature classification adapted from the pinned compatibility
++// reference documented in PORT_REFERENCE.md.
++#pragma once
++
++#include <cstdint>
++#include <cstring>
++
++enum class PortBootAbi : std::uint8_t {
++    Unsupported,
++    TwoArguments,
++    StringArgument,
++    NullableInt64
++};
++
++inline bool port_boot_integer32_enum(bool is_enum, const char *underlying,
++                                     int size, unsigned alignment, bool byref) noexcept {
++    return !byref && is_enum && underlying &&
++           (std::strcmp(underlying, "System.Int32") == 0 ||
++            std::strcmp(underlying, "System.UInt32") == 0) &&
++           size == 4 && alignment == 4;
++}
++
++inline PortBootAbi port_boot_abi(unsigned count, bool instance, const char *result,
++                                 const char *first, const char *second, const char *third,
++                                 int size = 0, unsigned alignment = 0,
++                                 bool verified_integer32_enum = false) noexcept {
++    if (instance || !result || std::strcmp(result, "System.Boolean") != 0 ||
++        !first || std::strcmp(first, "System.String") != 0 ||
++        !second ||
++        (!verified_integer32_enum &&
++         std::strcmp(second, "System.Int32") != 0 &&
++         std::strcmp(second, "System.UInt32") != 0)) {
++        return PortBootAbi::Unsupported;
++    }
++
++    if (count == 2) {
++        return PortBootAbi::TwoArguments;
++    }
++    if (count != 3 || !third) {
++        return PortBootAbi::Unsupported;
++    }
++    if (std::strcmp(third, "System.String") == 0) {
++        return PortBootAbi::StringArgument;
++    }
++    if ((std::strcmp(third, "System.Nullable<System.Int64>") == 0 ||
++         std::strcmp(third, "System.Nullable`1<System.Int64>") == 0) &&
++        size == 16 && alignment == 8) {
++        return PortBootAbi::NullableInt64;
++    }
++    return PortBootAbi::Unsupported;
++}
+--- /dev/null
++++ b/shellui/include/port_mono_abi.hpp
+@@ -0,0 +1,17 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Mono value layout adapted from the pinned compatibility reference documented in
++// PORT_REFERENCE.md; validate against the target runtime before hardware use.
++#pragma once
++
++#include <cstddef>
++#include <cstdint>
++
++struct PortNullableInt64 {
++    std::uint8_t has_value;
++    std::uint8_t padding[7];
++    std::int64_t value;
++};
++
++static_assert(sizeof(PortNullableInt64) == 16);
++static_assert(alignof(PortNullableInt64) == 8);
++static_assert(offsetof(PortNullableInt64, value) == 8);
+--- a/shellui/include/HookedFuncs.hpp
++++ b/shellui/include/HookedFuncs.hpp
+@@ -16,6 +16,7 @@
+ 
+ #pragma once
+ #include "external_symbols.hpp"
++#include "port_mono_abi.hpp"
+ #include <string>
+ #include <vector>
+ #include <iostream>
+@@ -579,6 +580,7 @@
+ extern int (*GetHwModelName)(MonoArray* serial);
+ extern int (*PupExpirationGetStatus)(PupStatus& status, uint32_t& time);
+ extern bool (*boot_orig)(MonoString* uri, int opt, MonoString* titleIdForBootAction);
++extern bool (*boot_orig_nullable)(MonoString* uri, int opt, PortNullableInt64 titleIdForBootAction);
+ extern bool (*boot_orig_2)(MonoString* uri, int opt);
+ extern GamePadData (*GetData)(int deviceIndex);
+ extern void(*CallDecrypt_orig)(unsigned char* bundleData, int bundleOffset, int bundleSize, int* payloadOffset, int* realPayloadSize);
+@@ -643,6 +645,7 @@
+ int Launch_FG_Game(const char *path, const char* title_id, const char* title);
+ void CallDecrypt(unsigned char* bundleData, int bundleOffset, int bundleSize,  int* payloadOffset, int* realPayloadSize);
+ bool uri_boot_hook(MonoString* uri, int opt, MonoString* titleIdForBootAction);
++bool uri_boot_hook_nullable(MonoString* uri, int opt, PortNullableInt64 titleIdForBootAction);
+ bool uri_boot_hook_2(MonoString* uri, int opt);
+ GamePadData GetData_hook(int deviceIndex);
+ void OnShareButton(MonoObject * data);
+--- a/shellui/src/HookFunctions.cpp
++++ b/shellui/src/HookFunctions.cpp
+@@ -2545,25 +2545,39 @@
+     return false; // No redirect needed
+   }
+   
+-  bool uri_boot_hook(MonoString* uri, int opt, MonoString* titleIdForBootAction) {
+-    if(handle_uri_boot_common(uri, opt, titleIdForBootAction)) {
+-        if(global_conf.lite_mode) {
+-            // In lite mode, we don't want to handle any shortcuts
++  template<typename Argument>
++  bool port_boot_dispatch(MonoString* uri, int opt, Argument titleIdForBootAction,
++                          bool (*original)(MonoString*, int, Argument),
++                          MonoString* logTitleId) {
++    if (handle_uri_boot_common(uri, opt, logTitleId)) {
++        if (global_conf.lite_mode) {
+             notify("Lite mode is enabled, shortcuts are disabled");
+-            return boot_orig(uri, opt, titleIdForBootAction);
++            return original(uri, opt, titleIdForBootAction);
+         }
+ 
+         std::string uri_string = Mono_to_String(uri);
+-        if(uri_string == "etaHEN?Dump") {
+-          return boot_orig(mono_string_new(Root_Domain, "pshomeui:navigateToHome?bootCondition=psButton"),  opt, titleIdForBootAction);
++        if (uri_string == "etaHEN?Dump") {
++            return original(mono_string_new(Root_Domain,
++                    "pshomeui:navigateToHome?bootCondition=psButton"),
++                    opt, titleIdForBootAction);
+         }
+-      // Redirect to debug settings
+-      return boot_orig(mono_string_new(Root_Domain, ETAHEN_TOOLBOX_URI), opt, titleIdForBootAction);
++        return original(mono_string_new(Root_Domain, ETAHEN_TOOLBOX_URI),
++                        opt, titleIdForBootAction);
+     }
+-    
+-    return boot_orig(uri, opt, titleIdForBootAction);
++
++    return original(uri, opt, titleIdForBootAction);
+   }
+-  
++
++  bool uri_boot_hook(MonoString* uri, int opt, MonoString* titleIdForBootAction) {
++      return port_boot_dispatch(uri, opt, titleIdForBootAction, boot_orig,
++                                titleIdForBootAction);
++  }
++
++  bool uri_boot_hook_nullable(MonoString* uri, int opt, PortNullableInt64 titleIdForBootAction) {
++      return port_boot_dispatch(uri, opt, titleIdForBootAction, boot_orig_nullable,
++                                nullptr);
++  }
++
+   bool uri_boot_hook_2(MonoString* uri, int opt) {
+   #if SHELL_DEBUG==1
+     shellui_log("uri_boot_hook_2: %s, opt: %i", Mono_to_String(uri).c_str(), opt);
+--- a/shellui/src/prx.cpp
++++ b/shellui/src/prx.cpp
+@@ -17,6 +17,7 @@
+ 
+ #include "Detour.h"
+ #include "HookedFuncs.hpp"
++#include "port_boot_abi.hpp"
+ #include "defs.h"
+ #include "external_symbols.hpp"
+ #include "ipc.hpp"
+@@ -24,6 +25,7 @@
+ #include "ps5/kernel.h"
+ #include "ucred.h"
+ #include <cstdint>
++#include <cstring>
+ #include <iostream>
+ #include "webserver.hpp"
+ 
+@@ -1174,11 +1176,136 @@
+       shellui_log("Failed to detour Func Set3");
+     }
+ 
+-    boot_orig = (bool( * )(MonoString * , int, MonoString * )) DetourFunction(Get_Address_of_Method(AppSystem_img, appsystem_namespace.c_str(), boot_helper.c_str(), boot_method.c_str(), 3), (void * )&uri_boot_hook);
+-    if (!boot_orig) {
+-      boot_orig_2 = (bool( * )(MonoString * , int)) DetourFunction(Get_Address_of_Method(AppSystem_img, appsystem_namespace.c_str(), boot_helper.c_str(), boot_method.c_str(), 2), (void * )&uri_boot_hook_2);
+-      if (!boot_orig_2) {
+-        notify("failed to detour Func Set4");
++    const uint32_t boot_firmware = kernel_get_fw_version() & 0xffff0000u;
++    if (boot_firmware >= 0x11000000u) {
++      auto method_signature = (void *(*)(MonoMethod *))kernel_dynlib_dlsym(-1, libmono_handle, "mono_method_signature");
++      auto signature_count = (unsigned (*)(void *))kernel_dynlib_dlsym(-1, libmono_handle, "mono_signature_get_param_count");
++      auto signature_instance = (int (*)(void *))kernel_dynlib_dlsym(-1, libmono_handle, "mono_signature_is_instance");
++      auto signature_return = (void *(*)(void *))kernel_dynlib_dlsym(-1, libmono_handle, "mono_signature_get_return_type");
++      auto signature_params = (void *(*)(void *, void **))kernel_dynlib_dlsym(-1, libmono_handle, "mono_signature_get_params");
++      auto type_name = (char *(*)(void *))kernel_dynlib_dlsym(-1, libmono_handle, "mono_type_get_name");
++      auto class_from_type = (MonoClass *(*)(void *))kernel_dynlib_dlsym(-1, libmono_handle, "mono_class_from_mono_type");
++      auto value_size = (int (*)(MonoClass *, unsigned *))kernel_dynlib_dlsym(-1, libmono_handle, "mono_class_value_size");
++      auto class_is_enum = (int (*)(MonoClass *))kernel_dynlib_dlsym(-1, libmono_handle, "mono_class_is_enum");
++      auto enum_basetype = (void *(*)(MonoClass *))kernel_dynlib_dlsym(-1, libmono_handle, "mono_class_enum_basetype");
++      auto type_is_byref = (int (*)(void *))kernel_dynlib_dlsym(-1, libmono_handle, "mono_type_is_byref");
++      auto free_mono = (void (*)(void *))kernel_dynlib_dlsym(-1, libmono_handle, "mono_free");
++      if (!method_signature || !signature_count || !signature_instance || !signature_return ||
++          !signature_params || !type_name || !class_from_type || !value_size || !free_mono) {
++        notify("Boot signature inspection is unavailable; Toolbox stopped before hooking");
++        return -1;
++      }
++
++      MonoClass *boot_class = mono_class_from_name(AppSystem_img, appsystem_namespace.c_str(), boot_helper.c_str());
++      if (!boot_class) {
++        notify("Boot helper class was not found");
++        return -1;
++      }
++      MonoMethod *boot_method_info = mono_class_get_method_from_name(boot_class, boot_method.c_str(), 3);
++      if (!boot_method_info)
++        boot_method_info = mono_class_get_method_from_name(boot_class, boot_method.c_str(), 2);
++      if (!boot_method_info) {
++        notify("Boot method was not found");
++        return -1;
++      }
++
++      void *signature = method_signature(boot_method_info);
++      if (!signature) {
++        notify("Boot method signature was unavailable");
++        return -1;
++      }
++      const unsigned count = signature_count(signature);
++      if (count != 2 && count != 3) {
++        notify("Unsupported Boot method parameter count");
++        return -1;
++      }
++
++      void *types[3] = {};
++      char *names[3] = {};
++      void *iterator = nullptr;
++      for (unsigned i = 0; i < count; ++i) {
++        types[i] = signature_params(signature, &iterator);
++        if (types[i])
++          names[i] = type_name(types[i]);
++      }
++      void *return_type = signature_return(signature);
++      char *return_name = return_type ? type_name(return_type) : nullptr;
++      unsigned third_alignment = 0;
++      int third_size = 0;
++      if (count == 3 && names[2] && std::strstr(names[2], "System.Nullable")) {
++        MonoClass *third_class = class_from_type(types[2]);
++        if (third_class)
++          third_size = value_size(third_class, &third_alignment);
++      }
++
++      bool verified_integer32_enum = false;
++      const bool option_byref = !types[1] || !type_is_byref || type_is_byref(types[1]);
++      if (types[1] && class_is_enum && enum_basetype && !option_byref) {
++        MonoClass *option_class = class_from_type(types[1]);
++        if (option_class && class_is_enum(option_class)) {
++          void *base_type = enum_basetype(option_class);
++          char *base_name = base_type ? type_name(base_type) : nullptr;
++          unsigned option_alignment = 0;
++          const int option_size = value_size(option_class, &option_alignment);
++          verified_integer32_enum =
++              port_boot_integer32_enum(true, base_name, option_size, option_alignment, false);
++          if (base_name)
++            free_mono(base_name);
++        }
++      }
++
++      const bool is_instance = signature_instance(signature) != 0;
++      const PortBootAbi boot_abi =
++          port_boot_abi(count, is_instance, return_name, names[0], names[1], names[2],
++                        third_size, third_alignment, verified_integer32_enum);
++      for (char *name : names) {
++        if (name)
++          free_mono(name);
++      }
++      if (return_name)
++        free_mono(return_name);
++
++      if (boot_abi == PortBootAbi::Unsupported) {
++        notify("Unrecognized Boot signature; Toolbox stopped before hooking");
++        return -1;
++      }
++      void *boot_address = Get_Address_of_Method(AppSystem_img, appsystem_namespace.c_str(),
++                                                 boot_helper.c_str(), boot_method.c_str(), count);
++      if (!boot_address) {
++        notify("Boot method address was not found");
++        return -1;
++      }
++      if (boot_abi == PortBootAbi::TwoArguments) {
++        boot_orig_2 = (bool (*)(MonoString *, int))DetourFunction(boot_address, (void *)&uri_boot_hook_2);
++      } else if (boot_abi == PortBootAbi::StringArgument) {
++        boot_orig = (bool (*)(MonoString *, int, MonoString *))DetourFunction(boot_address, (void *)&uri_boot_hook);
++      } else {
++        boot_orig_nullable =
++            (bool (*)(MonoString *, int, PortNullableInt64))DetourFunction(boot_address, (void *)&uri_boot_hook_nullable);
++      }
++      if (!boot_orig_2 && boot_abi == PortBootAbi::TwoArguments) {
++        notify("Failed to detour two-argument Boot method");
++        return -1;
++      }
++      if (!boot_orig && boot_abi == PortBootAbi::StringArgument) {
++        notify("Failed to detour string-argument Boot method");
++        return -1;
++      }
++      if (!boot_orig_nullable && boot_abi == PortBootAbi::NullableInt64) {
++        notify("Failed to detour nullable Boot method");
++        return -1;
++      }
++      shellui_log("Boot ABI selected: %s",
++                  boot_abi == PortBootAbi::TwoArguments ? "two arguments" :
++                  boot_abi == PortBootAbi::StringArgument ? "string argument" :
++                  "nullable Int64 argument");
++    } else {
++      boot_orig = (bool( * )(MonoString * , int, MonoString * )) DetourFunction(Get_Address_of_Method(AppSystem_img, appsystem_namespace.c_str(), boot_helper.c_str(), boot_method.c_str(), 3), (void * )&uri_boot_hook);
++      if (!boot_orig) {
++        boot_orig_2 = (bool( * )(MonoString * , int)) DetourFunction(Get_Address_of_Method(AppSystem_img, appsystem_namespace.c_str(), boot_helper.c_str(), boot_method.c_str(), 2), (void * )&uri_boot_hook_2);
++        if (!boot_orig_2) {
++          notify("failed to detour Func Set4");
++        }
+       }
+     }
+ 

@@ -8,8 +8,8 @@ Adapt official etaHEN 2.5B for firmware 13.42 while preserving the upstream Tool
 
 - Official etaHEN is pinned in upstream/etaHEN at tag 2.5B, commit 5061a85312eb1d2da811269bcb9061e4b01302a1.
 - The community multi-firmware reference is pinned in references/etaHEN-13.42-reference at commit 89123ffbc9d14a4515c74800b00124595de60348.
-- Use the reference to understand firmware profiles, startup/runtime compatibility, and Toolbox route selection. Do not import its unrelated feature changes by default.
-- The tracked overlays cover 13.42 libhijacker offset selection, firmware-aware Toolbox URI routing, and the Game/App dumper pager-table lookup. They do not establish full firmware support or port the per-game Game Options path.
+- Use the reference to understand firmware profiles, startup/runtime compatibility, Toolbox route selection, and Mono Boot ABI differences. Do not import its unrelated feature changes by default.
+- The tracked overlays cover 13.42 libhijacker offset selection, firmware-aware Toolbox URI routing, the Game/App dumper pager-table lookup, and modern ShellUI Boot ABI selection. They do not establish full firmware support or port the per-game Game Options path.
 - Keep FEATURES.md aligned to official etaHEN 2.5B. Do not move the official source baseline to another release unless the user asks.
 
 ## Firmware work
@@ -25,7 +25,7 @@ Adapt official etaHEN 2.5B for firmware 13.42 while preserving the upstream Tool
 
 - Run bash scripts/codex-cloud-setup.sh before building.
 - Source build requires the PS5 Payload SDK. Check its official project instructions before configuring CMake; do not invent SDK paths or compiler flags.
-- Run `bash scripts/test_1342_offsets.sh` after changing the profile overlay, `bash scripts/test_1342_route.sh` after changing Toolbox routing, and `bash scripts/test_1342_selfpager.sh` after changing the dumper pager-table lookup.
+- Run `bash scripts/test_1342_offsets.sh` after changing the profile overlay, `bash scripts/test_1342_route.sh` after changing Toolbox routing, and `bash scripts/test_1342_selfpager.sh` after changing the dumper pager-table lookup, plus `bash scripts/test_1342_boot_abi.sh` after changing Boot signature handling.
 - Run relevant source tests and build checks after a code change.
 - Never claim a hardware result unless the user reports that test.
 
