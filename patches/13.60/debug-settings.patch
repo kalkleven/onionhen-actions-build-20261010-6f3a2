@@ -60,10 +60,10 @@ diff --git a/scripts/build-bootstrapper.mjs b/scripts/build-bootstrapper.mjs
 index 81e699e..6ca5170 100644
 --- a/scripts/build-bootstrapper.mjs
 +++ b/scripts/build-bootstrapper.mjs
-@@ -20 +20 @@
+@@ -21 +21 @@
 -const elf=path.join(root,'build/etaHEN-13.60-experimental.elf');
 +const elf=path.join(root,'build/etaHEN-13.60-debug-settings.elf');
-@@ -22 +22 @@
+@@ -23 +23 @@
 -const data=await readFile(elf);const manifest={name:'Unofficial etaHEN 2.5B experimental 13.60 port',firmware:'13.60',bytes:data.length,sha256:createHash('sha256').update(data).digest('hex'),kstuff:'EchoStretch/kstuff-lite v1.11',hardwareValidated:false};await writeFile(path.join(root,'build/manifest.json'),JSON.stringify(manifest,null,2));console.log(JSON.stringify(manifest));
 +const data=await readFile(elf);const manifest={name:'Unofficial etaHEN 2.5B 13.60 Debug Settings port',firmware:'13.60',bytes:data.length,sha256:createHash('sha256').update(data).digest('hex'),kstuff:'EchoStretch/kstuff-lite v1.11',hardwareValidated:false};await writeFile(path.join(root,'build/manifest.json'),JSON.stringify(manifest,null,2));console.log(JSON.stringify(manifest));
 diff --git a/tests/mono-abi.cpp b/tests/mono-abi.cpp
