@@ -36,6 +36,27 @@ else
   echo "Applied experimental 13.42 libhijacker profile overlay."
 fi
 
+route_header="$source_dir/include/port_toolbox_route.hpp"
+hook_source="$source_dir/shellui/src/HookFunctions.cpp"
+route_patch="$repo_root/patches/13.42/toolbox-route.patch"
+if [[ -f "$route_header" ]]; then
+  if ! grep -Fq '#include "port_toolbox_route.hpp"' "$hook_source"; then
+    echo "The 13.42 route helper exists, but HookFunctions.cpp is not patched." >&2
+    exit 1
+  fi
+  all_route_uses="$(grep -o 'ETAHEN_TOOLBOX_URI' "$hook_source" | wc -l | tr -d '[:space:]')"
+  no_mode_uses="$(grep -o 'ETAHEN_TOOLBOX_URI_NO_MODE' "$hook_source" | wc -l | tr -d '[:space:]')"
+  if [[ "$all_route_uses" != "5" || "$no_mode_uses" != "1" ]] || grep -Fq 'pssettings:play?' "$hook_source"; then
+    echo "The Toolbox route overlay is incomplete." >&2
+    exit 1
+  fi
+  echo "13.42 Toolbox route overlay already applied."
+else
+  git -C "$upstream_repo" apply --check --directory="Source Code" "$route_patch"
+  git -C "$upstream_repo" apply --directory="Source Code" "$route_patch"
+  echo "Applied experimental 13.42 Toolbox route overlay."
+fi
+
 echo "etaHEN submodule commit: $actual_upstream"
 echo "Checking build tools:"
 for tool in cmake ninja clang clang++ xz; do
@@ -47,9 +68,10 @@ for tool in cmake ninja clang clang++ xz; do
 done
 
 if command -v g++ >/dev/null 2>&1; then
-  bash "$repo_root/tests/test_1342_offsets.sh"
+  bash "$repo_root/scripts/test_1342_offsets.sh"
+  bash "$repo_root/scripts/test_1342_route.sh"
 else
-  echo "Skipping host profile tests: g++ is not installed."
+  echo "Skipping host-side port tests: g++ is not installed."
 fi
 
 if [[ -n "${PS5_PAYLOAD_SDK:-}" ]]; then

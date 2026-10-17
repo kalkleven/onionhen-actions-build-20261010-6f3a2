@@ -8,9 +8,11 @@ Official etaHEN 2.5B documents the etaHEN Toolbox as replacing Debug Settings an
 
 The tracked overlay at `patches/13.42/offsets.patch` adds a 13.42 profile to the official source's `libhijacker` offset lookups for allproc, security flags, QA flags, user-token flags, and root vnode. Values were adapted from the pinned community source reference and are identified in the patch header.
 
-`scripts/codex-cloud-setup.sh` applies the overlay to the pinned etaHEN submodule. The host-side test `tests/test_1342_offsets.sh` compiles the actual patched `offsets.cpp` against a stubbed firmware-version query. It passed for 13.42 and confirmed 13.43 remains unsupported.
+`scripts/codex-cloud-setup.sh` applies the overlay to the pinned etaHEN submodule. The host-side test `scripts/test_1342_offsets.sh` compiles the actual patched `offsets.cpp` against a stubbed firmware-version query. It passed for 13.42 and confirmed 13.43 remains unsupported.
 
-This is one compatibility layer only. It does not adapt startup, kstuff, ShellUI hooks, Toolbox routing, Settings bundle behavior, or Game Options. No PS5 target build or console test has been performed. The reference manifest itself marks its 13.42 profile as not hardware-confirmed.
+The overlay at `patches/13.42/toolbox-route.patch` adapts all five upstream Toolbox entry routes in `HookFunctions.cpp`. It selects the legacy `debug_settings_old` URI for firmware 11.00 and newer and preserves the two original URI forms below 11.00. `scripts/test_1342_route.sh` passed for 13.42, 13.60, the 11.00 boundary, and both pre-11.00 URI forms.
+
+These remain partial compatibility layers. Startup, kstuff, Settings bundle behavior, and the per-game Game Options path are not yet adapted. No PS5 target build or console test has been performed. The reference manifest itself marks its 13.42 profile as not hardware-confirmed.
 
 ## Compatibility reference
 
@@ -34,8 +36,9 @@ The prior main-branch head was 19ce374aeb808a6ccd61db6522a9cdb10ff60cb4. Git his
 - [x] Pin official etaHEN 2.5B and a 13.42 source reference.
 - [x] Add and host-test the reference-derived 13.42 libhijacker profile overlay.
 - [ ] Compare and adapt required startup, kstuff, ShellUI, and dependency changes while preserving official features.
-- [ ] Port and test the Toolbox route and per-game Game Options path on source.
+- [x] Adapt and host-test the Toolbox route selection across all official Toolbox entry points.
+- [ ] Port and test the per-game Game Options path on source.
 - [ ] Build with the PS5 Payload SDK and record the build output.
 - [ ] Test Toolbox and per-game options on a real 13.42 console and record the result.
 
-Current status: a focused offset overlay is in the repository and its host test passes. There is not yet a complete 13.42 payload, and no PS5 build or hardware test is included.
+Current status: the offset and Toolbox route overlays are in the repository, and both host tests pass. There is not yet a complete 13.42 payload, and no PS5 build or hardware test is included.
