@@ -102,3 +102,16 @@ index 81e699e..6ca5170 100644
  run(['ld.lld','--no-dependent-libraries','-pie','--hash-style=gnu','-z','max-page-size=0x4000','-T',path.join(sdk,'ldscripts/elf_x86_64.x'),...objects,path.join(sdk,'target/lib/crt1.o'),'-L',path.join(sdk,'target/lib'),'-L',path.join(root,'dependencies/lib'),'-L',path.join(source,'lib'),'--start-group',...['libNineS','libelfldr'].map(n=>path.join(root,'build/core/'+n+'.a')),'-lsqlite3',...['c++','c++abi','unwind','c'].map(l=>path.join(sdk,'target/lib/lib'+l+'.a')),'-ldl','--end-group','--no-as-needed',...['SceSystemService','SceUserService','kernel_sys','SceNotification','SceLibcInternal','SceNet'].map(l=>'-l'+l),'-o',elf]);
 -const data=await readFile(elf);const manifest={name:'Unofficial etaHEN 2.5B experimental 13.60 port',firmware:'13.60',bytes:data.length,sha256:createHash('sha256').update(data).digest('hex'),kstuff:'EchoStretch/kstuff-lite v1.11',hardwareValidated:false};await writeFile(path.join(root,'build/manifest.json'),JSON.stringify(manifest,null,2));console.log(JSON.stringify(manifest));
 +const data=await readFile(elf);const manifest={name:'Unofficial etaHEN 2.5B 13.60 Debug Settings port',firmware:'13.60',bytes:data.length,sha256:createHash('sha256').update(data).digest('hex'),kstuff:'EchoStretch/kstuff-lite v1.11',hardwareValidated:false};await writeFile(path.join(root,'build/manifest.json'),JSON.stringify(manifest,null,2));console.log(JSON.stringify(manifest));
+
+diff --git a/tests/mono-abi.cpp b/tests/mono-abi.cpp
+--- a/tests/mono-abi.cpp
++++ b/tests/mono-abi.cpp
+@@ -25,7 +25,8 @@ int main(){
+  assert(!port_toolbox_root_requested(nullptr));
+  assert(!port_toolbox_root_requested(ETAHEN_TOOLBOX_URI));
+  assert(!port_toolbox_root_requested("etaHEN?Cheats"));
+- assert(!port_toolbox_root_requested("pssettings:play?mode=settings&function=debug_settings"));
++ assert(port_toolbox_root_requested("pssettings:play?mode=settings&function=debug_settings"));
++ assert(port_toolbox_root_requested("pssettings:play?function=debug_settings"));
+  assert(port_toolbox_root_requested(ETAHEN_TOOLBOX_ROOT_URI));
+  assert(port_toolbox_root_requested("etaHEN?Toolbox"));
