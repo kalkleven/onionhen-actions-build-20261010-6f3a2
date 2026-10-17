@@ -8,9 +8,11 @@ Official etaHEN 2.5B documents the etaHEN Toolbox as replacing Debug Settings an
 
 The tracked overlay at `patches/13.42/offsets.patch` adds a 13.42 profile to the official source's `libhijacker` offset lookups for allproc, security flags, QA flags, user-token flags, and root vnode. Values were adapted from the pinned community source reference and are identified in the patch header.
 
-`scripts/codex-cloud-setup.sh` applies the overlay to the pinned etaHEN submodule. The host-side test `scripts/test_1342_offsets.sh` compiles the actual patched `offsets.cpp` against a stubbed firmware-version query. It passed for 13.42 and confirmed 13.43 remains unsupported.
+`scripts/codex-cloud-setup.sh` applies all three overlays to the pinned etaHEN submodule. The host-side test `scripts/test_1342_offsets.sh` compiles the actual patched `offsets.cpp` against a stubbed firmware-version query. It passed for 13.42 and confirmed 13.43 remains unsupported.
 
 The overlay at `patches/13.42/toolbox-route.patch` adapts all five upstream Toolbox entry routes in `HookFunctions.cpp`. It selects the legacy `debug_settings_old` URI for firmware 11.00 and newer and preserves the two original URI forms below 11.00. `scripts/test_1342_route.sh` passed for 13.42, 13.60, the 11.00 boundary, and both pre-11.00 URI forms.
+
+The overlay at `patches/13.42/selfpager.patch` adds the 13.42 pager-table offset used by the existing Game/App dumper. The value comes from the pinned reference firmware profile. `scripts/test_1342_selfpager.sh` passed for 13.42 and rejects adjacent unsupported profiles.
 
 These remain partial compatibility layers. Startup, kstuff, Settings bundle behavior, and the per-game Game Options path are not yet adapted. No PS5 target build or console test has been performed. The reference manifest itself marks its 13.42 profile as not hardware-confirmed.
 
@@ -41,4 +43,4 @@ The prior main-branch head was 19ce374aeb808a6ccd61db6522a9cdb10ff60cb4. Git his
 - [ ] Build with the PS5 Payload SDK and record the build output.
 - [ ] Test Toolbox and per-game options on a real 13.42 console and record the result.
 
-Current status: the offset and Toolbox route overlays are in the repository, and both host tests pass. There is not yet a complete 13.42 payload, and no PS5 build or hardware test is included.
+Current status: the offset, Toolbox route, and Game/App dumper pager-table overlays are in the repository, and all three host checks pass. There is not yet a complete 13.42 payload, and no PS5 build or hardware test is included.

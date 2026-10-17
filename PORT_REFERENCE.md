@@ -14,7 +14,7 @@ This workbench pins the unofficial etaHEN 2.5B multi-firmware source at commit `
 
 Keep official etaHEN 2.5B as the source and feature baseline. Use the reference to identify the compatibility changes needed for 13.42. Do not adopt its separate Toolbox card, added plugin/FPS features, altered menu assets, or binaries unless the user asks for them.
 
-The overlays adapt the 13.42 libhijacker profile fields used by `offsets.cpp` and the firmware-aware Toolbox route. The route change applies only to existing official entry points; it preserves the upstream URI forms below 11.00 and selects the legacy route on 11.00 and later. Both overlays are applied by the setup script and have host-side regression tests. Startup, kstuff, Settings bundle behavior, and Game Options still need separate work. Keep the changes experimental until a real 13.42 console test is reported.
+The overlays adapt the 13.42 libhijacker profile fields used by `offsets.cpp`, the firmware-aware Toolbox route, and the Game/App dumper pager-table lookup from the reference profile. The route change applies only to existing official entry points; it preserves the upstream URI forms below 11.00 and selects the legacy route on 11.00 and later. All three overlays are applied by the setup script and have host-side regression tests. Startup, kstuff, Settings bundle behavior, and Game Options still need separate work. Keep the changes experimental until a real 13.42 console test is reported.
 
 ## Sources
 

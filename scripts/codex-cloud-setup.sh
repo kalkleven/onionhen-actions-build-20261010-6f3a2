@@ -57,6 +57,22 @@ else
   echo "Applied experimental 13.42 Toolbox route overlay."
 fi
 
+pager_header="$source_dir/libSelfDecryptor/include/firmware_profile_1342.h"
+selfpager_source="$source_dir/libSelfDecryptor/source/selfpager.c"
+selfpager_patch="$repo_root/patches/13.42/selfpager.patch"
+if [[ -f "$pager_header" ]]; then
+  if ! grep -Fq '#include "../include/firmware_profile_1342.h"' "$selfpager_source" ||
+     ! grep -Fq 'etahen_port_pager_table_offset(fwver << 16)' "$selfpager_source"; then
+    echo "The 13.42 pager-table header exists, but selfpager.c is not patched." >&2
+    exit 1
+  fi
+  echo "13.42 Game/App dumper pager-table overlay already applied."
+else
+  git -C "$upstream_repo" apply --check --directory="Source Code" "$selfpager_patch"
+  git -C "$upstream_repo" apply --directory="Source Code" "$selfpager_patch"
+  echo "Applied experimental 13.42 Game/App dumper pager-table overlay."
+fi
+
 echo "etaHEN submodule commit: $actual_upstream"
 echo "Checking build tools:"
 for tool in cmake ninja clang clang++ xz; do
@@ -71,7 +87,14 @@ if command -v g++ >/dev/null 2>&1; then
   bash "$repo_root/scripts/test_1342_offsets.sh"
   bash "$repo_root/scripts/test_1342_route.sh"
 else
-  echo "Skipping host-side port tests: g++ is not installed."
+  echo "Skipping C++ host tests: g++ is not installed."
+fi
+
+host_c_compiler="${CC:-gcc}"
+if command -v "$host_c_compiler" >/dev/null 2>&1; then
+  bash "$repo_root/scripts/test_1342_selfpager.sh"
+else
+  echo "Skipping pager-table host test: C compiler not found ($host_c_compiler)."
 fi
 
 if [[ -n "${PS5_PAYLOAD_SDK:-}" ]]; then

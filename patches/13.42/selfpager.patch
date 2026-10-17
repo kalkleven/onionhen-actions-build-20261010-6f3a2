@@ -1,0 +1,34 @@
+--- /dev/null
++++ b/libSelfDecryptor/include/firmware_profile_1342.h
+@@ -0,0 +1,10 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Pager-table offset adapted from the pinned compatibility reference documented in
++// PORT_REFERENCE.md. The 13.42 profile remains subject to console validation.
++#pragma once
++
++#include <stdint.h>
++
++static inline uintptr_t etahen_port_pager_table_offset(uint32_t firmware_version) {
++    return (firmware_version & 0xffff0000u) == 0x13420000u ? 0x00e03910u : 0u;
++}
+--- a/libSelfDecryptor/source/selfpager.c
++++ b/libSelfDecryptor/source/selfpager.c
+@@ -11,6 +11,7 @@
+ #include <ps5/kernel.h>
+ 
+ #include "selfpager.h"
++#include "../include/firmware_profile_1342.h"
+ 
+ #define SELF_ORBIS_MAGIC 0x1D3D154F
+ #define SELF_PROSPERO_MAGIC 0xEEF51454
+@@ -160,6 +161,10 @@
+         pagertab_addr = KERNEL_ADDRESS_DATA_BASE + 0xDE04F0;
+         break;
+ 
++    case 0x1342:
++        pagertab_addr = KERNEL_ADDRESS_DATA_BASE + etahen_port_pager_table_offset(fwver << 16);
++        break;
++
+     default:
+         return ENOSYS;
+     }
