@@ -2,34 +2,23 @@
 
 ## Goal
 
-Adapt official etaHEN 2.5B for firmware 13.42 while preserving the upstream Toolbox and Game Options feature set.
+Use etaHEN 2.5B 13.60 r3 as the pinned source baseline. Apply the small local overlay so the existing Debug Settings entry opens etaHEN Toolbox and the old separate home-screen card is removed.
 
-## Source baselines
+## Source baseline
 
-- Official etaHEN is pinned in upstream/etaHEN at tag 2.5B, commit 5061a85312eb1d2da811269bcb9061e4b01302a1.
-- The community multi-firmware reference is pinned in references/etaHEN-13.42-reference at commit 89123ffbc9d14a4515c74800b00124595de60348.
-- Use the reference to understand firmware profiles, startup/runtime compatibility, Toolbox route selection, and Mono Boot ABI differences. Do not import its unrelated feature changes by default.
-- The tracked overlays cover 13.42 libhijacker offset selection, firmware-aware Toolbox URI routing, the Game/App dumper pager-table lookup, and modern ShellUI Boot ABI selection. They do not establish full firmware support or port the per-game Game Options path.
-- Keep FEATURES.md aligned to official etaHEN 2.5B. Do not move the official source baseline to another release unless the user asks.
+- The source submodule `upstream/etaHEN` is pinned to GronedWaffel/etahen-11.00-13.60 commit `f59d709228954918e61e8e1b7e64d4b70b24be2f`, tag `v2.5B-13.60-r3`.
+- The original release ELF is 30,410,624 bytes with SHA-256 `aa166a43347d10a31f7efa5ca26ec32f512c65e8910466bfc8033537337b87b2`.
+- Keep the upstream 13.60 runtime, kstuff and fPKG support intact. The local patch restores the Homebrew Store and PS5 webMAN Games Toolbox entries.
+- Do not include the upstream installer behavior in the built main ELF. The embedded cleanup helper may remove only the old `ETHN13600` etaHEN-owned card after its ownership marker matches.
 
-## Firmware work
+## Compatibility and verification
 
-- Record the source of each firmware compatibility change; do not guess fingerprints, bundle hashes, route behavior, or low-level address data.
-- Keep feature visibility and firmware compatibility separate: a feature being present in source does not prove it loads on 13.42.
-- The community reference's own manifest labels its 13.42 profile as not hardware-confirmed. Treat it as a source lead, not proof.
-- Keep the copied profile marked experimental until 13.42 hardware validation is reported.
-- Preserve the official Debug Settings / Toolbox and per-game menu behavior unless a change is required for 13.42 and supported by source evidence.
-- Record what was inspected, what was built, and whether a real console test was performed.
+- The 13.60 route overlay redirects both standard Sony Debug Settings URIs to etaHEN's existing `debug_settings_old` Toolbox route, while retaining the legacy card/shortcut route.
+- Re-enable the bundle label/icon replacement so the Debug Settings entry can be branded as etaHEN Toolbox.
+- Run `bash scripts/codex-cloud-setup.sh` after submodule initialization. Run `bash scripts/test_1360_route.sh` and `bash scripts/test_1360_overlay.sh` after changing the overlay.
+- Follow `upstream/etaHEN/BUILDING.md` for the PS5 SDK and external build inputs.
+- Record whether the patched ELF was built and tested on a console. Never describe the local overlay as hardware-validated unless that test has actually happened.
 
-## Build and verification
+## Licensing
 
-- Run bash scripts/codex-cloud-setup.sh before building.
-- Source build requires the PS5 Payload SDK. Check its official project instructions before configuring CMake; do not invent SDK paths or compiler flags.
-- Run `bash scripts/test_1342_offsets.sh` after changing the profile overlay, `bash scripts/test_1342_route.sh` after changing Toolbox routing, and `bash scripts/test_1342_selfpager.sh` after changing the dumper pager-table lookup, plus `bash scripts/test_1342_boot_abi.sh` after changing Boot signature handling.
-- Run relevant source tests and build checks after a code change.
-- Never claim a hardware result unless the user reports that test.
-
-## Licensing and changes
-
-- Preserve upstream copyright and GPL notices and include required attribution for any adopted code.
-- Keep new port changes small and traceable. Do not replace upstream files wholesale when a focused patch will do.
+Keep upstream copyright and GPL notices intact. Keep the local compatibility change in `patches/13.60/debug-settings.patch` and document its source behavior.

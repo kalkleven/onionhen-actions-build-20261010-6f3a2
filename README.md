@@ -1,45 +1,38 @@
-# etaHEN 2.5B — PS5 13.42 port workbench
+# etaHEN 2.5B r3 — 13.60 Debug Settings route
 
-This repository is a Codex workbench for adapting etaHEN 2.5B to firmware 13.42 while preserving the upstream feature set.
+This repository pins the source for the etaHEN 2.5B 13.60 r3 release and applies a small source overlay so the normal Debug Settings entry opens etaHEN Toolbox.
 
-The official source is pinned at etaHEN tag 2.5B, commit 5061a85312eb1d2da811269bcb9061e4b01302a1, under `upstream/etaHEN/Source Code`. A separate community multi-firmware source is pinned under `references/etaHEN-13.42-reference` for compatibility research only.
+## Pinned release
 
-## What is here
+- Source tag: [v2.5B-13.60-r3](https://github.com/GronedWaffel/etahen-11.00-13.60/tree/v2.5B-13.60-r3)
+- Source commit: `f59d709228954918e61e8e1b7e64d4b70b24be2f`
+- Original ELF: [etaHEN-13.60.elf](https://github.com/GronedWaffel/etahen-11.00-13.60/releases/download/v2.5B-13.60-r3/etaHEN-13.60.elf)
+- Original ELF SHA-256: `aa166a43347d10a31f7efa5ca26ec32f512c65e8910466bfc8033537337b87b2`
 
-- AGENTS.md: project-specific instructions for Codex
-- FEATURES.md: upstream feature checklist for your console testing
-- PORT_STATUS.md: current evidence and remaining 13.42 work
-- PORT_REFERENCE.md: notes on the pinned 13.42 compatibility reference
-- patches/13.42/offsets.patch: experimental 13.42 profile overlay for libhijacker
-- patches/13.42/toolbox-route.patch: firmware-aware route selection for Toolbox entry points
-- patches/13.42/selfpager.patch: reference-derived 13.42 pager-table lookup for the Game/App dumper
-- patches/13.42/boot-abi.patch: runtime ShellUI Boot signature selection for firmware 11.00 and newer
-- tests/test_1342_boot_abi.cpp and scripts/test_1342_boot_abi.sh: host tests for supported Mono Boot signatures
-- tests/test_1342_selfpager.c and scripts/test_1342_selfpager.sh: host test for pager-table selection
-- tests/test_1342_route.cpp and scripts/test_1342_route.sh: host tests for legacy route selection and preserved pre-11 URI formats
-- scripts/test_1342_offsets.sh: host test for 13.42 profile selection and unsupported-version rejection
-- scripts/codex-cloud-setup.sh: initialize both source repositories, apply all four overlays, and check build tools
-- upstream/etaHEN: official etaHEN 2.5B source baseline
-- references/etaHEN-13.42-reference: pinned community compatibility reference
+The full source is available through the pinned submodule at `upstream/etaHEN`. This repository does not contain a copied ELF asset; the connected GitHub file tools can write text but cannot transfer release binaries. The patch must be built into a new ELF before it changes console behavior.
 
-## Prepare the source
+## Local overlay
 
-Clone with submodules enabled, or run:
+`patches/13.60/debug-settings.patch` makes these source changes:
 
-    bash scripts/codex-cloud-setup.sh
+- Routes the regular Sony `debug_settings` entry to r3's working legacy Toolbox page.
+- Re-enables etaHEN's Debug Settings label and icon replacement.
+- Restores the Homebrew Store and PS5 webMAN Games entries. Their handlers remain in the pinned source.
+- Embeds the existing ownership-checked card removal helper in the main payload instead of the card installer.
+- Names the generated payload `etaHEN-13.60-debug-settings.elf`.
 
-The script initializes both source repositories, applies the 13.42 libhijacker, Toolbox route, Game/App dumper pager-table, and ShellUI Boot ABI overlays, and runs the C++ host tests when g++ is available and the pager-table C test when a C compiler is available. It reports whether CMake, Ninja, Clang, xz, and PS5_PAYLOAD_SDK are available. These overlays do not complete the port or produce a payload.
+The payload retains the pinned r3 sources, including the existing kstuff and PS4 fPKG path.
 
-## Create the Codex Cloud environment
+## Prepare and build
 
-Create the environment on ChatGPT web or desktop, select this private repository, and use this install command:
+Run the source overlay checks:
 
     bash scripts/codex-cloud-setup.sh
 
-Review the setup result and publish the environment. After it is published, open Codex on mobile and select that environment. New environments are created on web or desktop; mobile can start work from a published environment.
+The PS5 target build needs the compiler, PS5 Payload SDK, external libraries and release assets listed in `upstream/etaHEN/BUILDING.md`. Once those inputs are installed, build from the source submodule:
 
-## Scope and testing
+    cd upstream/etaHEN
+    node scripts/check-build-inputs.mjs
+    node scripts/build-all.mjs
 
-The checklist records features documented by official etaHEN 2.5B. The tracked overlays add the reference-derived libhijacker offsets, firmware-aware Toolbox route selection, Game/App dumper pager-table lookup, and runtime ShellUI Boot signature selection for modern firmware. The Boot ABI classifier has host tests; the PS5 runtime reflection path has not been built or tested. The route patch preserves the official pre-11.00 URI forms and uses the legacy `debug_settings_old` route for firmware 11.00 and newer. The reference manifest marks its 13.42 profile as not hardware-confirmed. Startup, kstuff, Settings bundle behavior, and the per-game Game Options path still need porting and validation. No 13.42 payload build or console test is included here yet.
-
-Use the upstream project license and notices in upstream/etaHEN/LICENSE. Keep compatibility changes small, attributed, and reviewable.
+The expected output is `upstream/etaHEN/build/etaHEN-13.60-debug-settings.elf`. The connected workspace did not have the target SDK or build inputs, so this ELF has not been produced here. The route has host-side regression coverage; the final settings page and cleanup need a console test.

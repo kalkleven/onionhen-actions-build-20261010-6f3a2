@@ -1,0 +1,104 @@
+diff --git a/Source Code/bootstrapper/source/main.cpp b/Source Code/bootstrapper/source/main.cpp
+index e188613..1ba5e7c 100644
+--- a/Source Code/bootstrapper/source/main.cpp	
++++ b/Source Code/bootstrapper/source/main.cpp	
+@@ -74,7 +74,7 @@ along with this program; see the file COPYING. If not, see
+  extern uint8_t kstuff_start[];
+  extern const unsigned int kstuff_size;
+ #ifdef ETAHEN_PORT_1360
+- extern uint8_t toolbox_card_start[];
++ extern uint8_t toolbox_card_remove_start[];
+ #endif
+ 
+  extern uint8_t fps_prx_start[];
+@@ -1323,13 +1323,13 @@ int main(void) {
+   }
+ 
+ #ifdef ETAHEN_PORT_1360
+-  // The embedded helper owns only ETHN13600. It skips the registration scan
+-  // when its existing receipt, metadata and artwork already match.
+-  port_stage("bootstrap","before Toolbox card helper spawn");
+-  if(elfldr_spawn("/",sock.fd,toolbox_card_start,"etaHEN Card Setup")<0){
+-    port_stage("bootstrap","Toolbox card helper spawn failed");
+-    notify("etaHEN is running, but the Toolbox card installer could not start");
+-  }else port_stage("bootstrap","Toolbox card helper spawned; result is toolbox-card-install.json");
++  // Remove only the old etaHEN-owned card; the helper verifies its ownership
++  // marker and leaves unrelated applications untouched.
++  port_stage("bootstrap","before Toolbox card cleanup helper spawn");
++  if(elfldr_spawn("/",sock.fd,toolbox_card_remove_start,"etaHEN Card Cleanup")<0){
++    port_stage("bootstrap","Toolbox card cleanup helper spawn failed");
++    notify("etaHEN is running, but the old Toolbox card could not be cleaned up");
++  }else port_stage("bootstrap","Toolbox card cleanup helper spawned; result is toolbox-card-remove.json");
+ #endif
+ 
+   // return 0;
+diff --git a/Source Code/include/port_toolbox_route.hpp b/Source Code/include/port_toolbox_route.hpp
+index c071759..6cec1e4 100644
+--- a/Source Code/include/port_toolbox_route.hpp	
++++ b/Source Code/include/port_toolbox_route.hpp	
+@@ -10,5 +10,8 @@
+ #define ETAHEN_TOOLBOX_ROOT_URI ETAHEN_TOOLBOX_URI
+ #endif
+ inline bool port_toolbox_root_requested(const char* uri){
+- return uri&&(!strcmp(uri,ETAHEN_TOOLBOX_ROOT_URI)||!strcmp(uri,"etaHEN?Toolbox"));
++ return uri&&(!strcmp(uri,ETAHEN_TOOLBOX_ROOT_URI)||
++              !strcmp(uri,"etaHEN?Toolbox")||
++              !strcmp(uri,"pssettings:play?mode=settings&function=debug_settings")||
++              !strcmp(uri,"pssettings:play?function=debug_settings"));
+ }
+diff --git a/Source Code/shellui/assets/etaHEN_toolbox.xml b/Source Code/shellui/assets/etaHEN_toolbox.xml
+index c5d2ede..46df05c 100644
+--- a/Source Code/shellui/assets/etaHEN_toolbox.xml	
++++ b/Source Code/shellui/assets/etaHEN_toolbox.xml	
+@@ -7,6 +7,10 @@
+     <link id="id_game_package_installer" title="Package Installer" file="PkgInstaller/data/pkginstaller.xml"/>
+ 
+     <link id="id_game_custom_package_installer" title="★ Custom Background Package Installer" file="custompkginstaller.xml"/>
++
++    <!-- Keep the upstream Toolbox services available on the 13.60 port. -->
++    <link id="id_ps5_backups" title="(Beta) PS5 webMAN Games" second_title="Games must be in either /data/etaHEN/games and/or etaHEN/games on USB root" icon="//user//data//etaHEN//assets//webMAN.png" file="hb_loader.xml"/>
++    <button id="id_download_store" title="Install the Homebrew Store" icon="tex_store_icon" second_title="Installs the Homebrew Store"/>
+      
+     <!-- Plugins -->
+     <link id="id_plugins" title="Plugins / Payload ELFs" file="plugins.xml"/>
+diff --git a/Source Code/shellui/src/HookFunctions.cpp b/Source Code/shellui/src/HookFunctions.cpp
+index 5f50cb4..e30fbae 100644
+--- a/Source Code/shellui/src/HookFunctions.cpp	
++++ b/Source Code/shellui/src/HookFunctions.cpp	
+@@ -313,11 +313,6 @@ error:
+ }
+ 
+ void patch_bundle_strings(unsigned char* buffer, int* size_ptr, int actual_size) {
+-#ifdef ETAHEN_PORT_1360
+-  // Toolbox has its own home-screen card; the native Sony debug page keeps
+-  // its own name and icon instead of advertising a menu it does not display.
+-  return;
+-#endif
+   if (!buffer || !size_ptr) {
+       return;
+   }
+diff --git a/scripts/build-bootstrapper.mjs b/scripts/build-bootstrapper.mjs
+index 81e699e..6ca5170 100644
+--- a/scripts/build-bootstrapper.mjs
++++ b/scripts/build-bootstrapper.mjs
+@@ -9,15 +9,15 @@ if(shellManifest.probeHooks)throw Error('Rebuild ShellUI without the temporary h
+ const kstuff=path.join(source,'bootstrapper/assets/kstuff.elf');
+ if(createHash('sha256').update(await readFile(kstuff)).digest('hex')!=='ab9a6cb4d3b1daf139d4d646e402b1cf569071acd64599c936d7a3a6164dc779')throw Error('Expected official kstuff-lite v1.11 release asset');
+ const cardManifest=JSON.parse(await readFile(path.join(root,'build/toolbox-card-manifest.json'),'utf8'));
+-const cardPath=path.join(root,'build/toolbox-card-install.elf');
++const cardPath=path.join(root,'build/toolbox-card-remove.elf');
+ const cardHash=createHash('sha256').update(await readFile(cardPath)).digest('hex');
+-if(cardManifest.files.find(f=>f.file==='toolbox-card-install.elf')?.sha256!==cardHash)throw Error('Card installer does not match its manifest');
+-const assets={daemon:path.join(root,'build/daemon/daemon.elf'),util:path.join(root,'build/util/util.elf'),toolbox_card:cardPath,store_png:path.join(source,'bootstrapper/assets/store.png'),sicon:path.join(source,'bootstrapper/assets/etahen_sicon.png'),webman_icon:path.join(source,'bootstrapper/assets/webMAN.png'),kstuff,fps_prx:path.join(source,'bootstrapper/assets/fps.prx')};
++if(cardManifest.files.find(f=>f.file==='toolbox-card-remove.elf')?.sha256!==cardHash)throw Error('Card cleanup helper does not match its manifest');
++const assets={daemon:path.join(root,'build/daemon/daemon.elf'),util:path.join(root,'build/util/util.elf'),toolbox_card_remove:cardPath,store_png:path.join(source,'bootstrapper/assets/store.png'),sicon:path.join(source,'bootstrapper/assets/etahen_sicon.png'),webman_icon:path.join(source,'bootstrapper/assets/webMAN.png'),kstuff,fps_prx:path.join(source,'bootstrapper/assets/fps.prx')};
+ const embed=path.join(out,'embedded.S');
+ await writeFile(embed,'.section .data\n'+Object.entries(assets).map(([n,p])=>`.balign 16\n.global ${n}_start\n${n}_start:\n.incbin "${p.replaceAll('\\','/')}"\n${n}_end:\n.balign 4\n.global ${n}_size\n${n}_size:\n.long ${n}_end - ${n}_start\n`).join('\n'));
+ const files=[embed];for(const dir of ['bootstrapper/source','extern/tiny-json','extern/cJSON'])for(const f of await readdir(path.join(source,dir)))if(/\.(cpp|c|s)$/.test(f)&&!['daemon.c','elfldr.c','pt.c'].includes(f))files.push(path.join(source,dir,f));files.push(path.join(source,'lib/backtrace.cpp'));
+ const objects=[path.join(root,'build/core/libelfldr-elfldr.c.o'),path.join(root,'build/core/libNineS-pt.c.o')];
+ for(const file of files){const obj=path.join(out,path.basename(file)+'.o');run(['cc',...(file.endsWith('.cpp')?cxx:[]),...common,'-fexceptions','-I',path.join(source,'include'),'-I',path.join(source,'bootstrapper/include'),'-I',path.join(source,'libelfldr/include'),'-c',file,'-o',obj]);objects.push(obj);console.log('Compiled',path.basename(file));}
+-const elf=path.join(root,'build/etaHEN-13.60-experimental.elf');
++const elf=path.join(root,'build/etaHEN-13.60-debug-settings.elf');
+ run(['ld.lld','--no-dependent-libraries','-pie','--hash-style=gnu','-z','max-page-size=0x4000','-T',path.join(sdk,'ldscripts/elf_x86_64.x'),...objects,path.join(sdk,'target/lib/crt1.o'),'-L',path.join(sdk,'target/lib'),'-L',path.join(root,'dependencies/lib'),'-L',path.join(source,'lib'),'--start-group',...['libNineS','libelfldr'].map(n=>path.join(root,'build/core/'+n+'.a')),'-lsqlite3',...['c++','c++abi','unwind','c'].map(l=>path.join(sdk,'target/lib/lib'+l+'.a')),'-ldl','--end-group','--no-as-needed',...['SceSystemService','SceUserService','kernel_sys','SceNotification','SceLibcInternal','SceNet'].map(l=>'-l'+l),'-o',elf]);
+-const data=await readFile(elf);const manifest={name:'Unofficial etaHEN 2.5B experimental 13.60 port',firmware:'13.60',bytes:data.length,sha256:createHash('sha256').update(data).digest('hex'),kstuff:'EchoStretch/kstuff-lite v1.11',hardwareValidated:false};await writeFile(path.join(root,'build/manifest.json'),JSON.stringify(manifest,null,2));console.log(JSON.stringify(manifest));
++const data=await readFile(elf);const manifest={name:'Unofficial etaHEN 2.5B 13.60 Debug Settings port',firmware:'13.60',bytes:data.length,sha256:createHash('sha256').update(data).digest('hex'),kstuff:'EchoStretch/kstuff-lite v1.11',hardwareValidated:false};await writeFile(path.join(root,'build/manifest.json'),JSON.stringify(manifest,null,2));console.log(JSON.stringify(manifest));

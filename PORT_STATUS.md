@@ -1,49 +1,22 @@
-# 13.42 port status
+# etaHEN 13.60 overlay status
 
-## Menu locations
+## Baseline
 
-Official etaHEN 2.5B documents the etaHEN Toolbox as replacing Debug Settings and provides a custom Game Options menu, including a beta Game/App dumper entry. The community multi-firmware reference uses the legacy Debug Settings route for 11.00 and later and also has a separate home-screen Toolbox card. Preserve the official 2.5B menu behavior as the target.
+The workbench now pins the etaHEN 2.5B 13.60 r3 source at commit `f59d709228954918e61e8e1b7e64d4b70b24be2f`. The upstream release ELF is 30,410,624 bytes and has SHA-256 `aa166a43347d10a31f7efa5ca26ec32f512c65e8910466bfc8033537337b87b2`.
 
-## Applied compatibility slice
+## Changes in the overlay
 
-The tracked overlay at `patches/13.42/offsets.patch` adds a 13.42 profile to the official source's `libhijacker` offset lookups for allproc, security flags, QA flags, user-token flags, and root vnode. Values were adapted from the pinned community source reference and are identified in the patch header.
+- Standard `debug_settings` URIs now redirect to the existing r3 `debug_settings_old` Toolbox page.
+- The ShellUI bundle text/icon replacement is enabled for 13.60.
+- The Homebrew Store button and PS5 webMAN Games link are restored; the pinned source handlers remain intact.
+- The main ELF embeds the r3 ownership-checked card removal helper instead of starting the installer.
+- The build output is named `etaHEN-13.60-debug-settings.elf`.
 
-`scripts/codex-cloud-setup.sh` applies all four overlays to the pinned etaHEN submodule. The host-side test `scripts/test_1342_offsets.sh` compiles the actual patched `offsets.cpp` against a stubbed firmware-version query. It passed for 13.42 and confirmed 13.43 remains unsupported.
+## Verification
 
-The overlay at `patches/13.42/toolbox-route.patch` adapts all five upstream Toolbox entry routes in `HookFunctions.cpp`. It selects the legacy `debug_settings_old` URI for firmware 11.00 and newer and preserves the two original URI forms below 11.00. `scripts/test_1342_route.sh` passed for 13.42, 13.60, the 11.00 boundary, and both pre-11.00 URI forms.
+- The patch applies cleanly to the pinned r3 source files.
+- The host route regression test passes for standard and legacy URIs, and rejects unrelated routes.
+- The source overlay checks verify the restored Toolbox IDs, handler presence, card cleanup wiring, and retained fPKG hook.
+- No patched target ELF or PS5 console test was produced in this workspace because the PS5 SDK and external build inputs are not available here. The published r3 binary remains the unmodified upstream asset.
 
-The overlay at `patches/13.42/selfpager.patch` adds the 13.42 pager-table offset used by the existing Game/App dumper. The value comes from the pinned reference firmware profile. `scripts/test_1342_selfpager.sh` passed for 13.42 and rejects adjacent unsupported profiles.
-
-The overlay at `patches/13.42/boot-abi.patch` inspects the ShellUI Boot method on firmware 11.00 and newer, then chooses the existing two-argument route or a matching string / nullable-Int64 hook. Older firmware keeps the upstream fallback. `scripts/test_1342_boot_abi.sh` passed for supported and rejected Mono signatures. The runtime reflection path itself still needs a PS5 SDK build and a 13.42 console test.
-
-These remain partial compatibility layers. Startup, kstuff, Settings bundle behavior, and the per-game Game Options path are not yet adapted. No PS5 target build or console test has been performed. The reference manifest itself marks its 13.42 profile as not hardware-confirmed.
-
-## Compatibility reference
-
-A code-only reference is pinned at `references/etaHEN-13.42-reference`:
-- Repository: https://github.com/GronedWaffel/etahen-11.00-13.60
-- Release tag: `v2.5B-unified.1`
-- Commit: `89123ffbc9d14a4515c74800b00124595de60348`
-
-Its firmware profile table includes 13.42, and its route helper selects the legacy `debug_settings_old` URI for versions 11.00 and later. Its own `firmware-profiles.json` marks 13.42 as `supported-profile-not-hardware-confirmed`. The source has broader startup, runtime, and ABI changes too; a profile row alone is not a complete payload port.
-
-This reference is for source comparison. Its extra/changed features and binaries have not been adopted into this repository.
-
-## Findings from the older private workspace
-
-Before this workbench reset, the older private OnionHEN fork had some low-level 13.42 version entries. Its ShellUI route policy had no verified 13.42 Settings-bundle fingerprint; the inspected profile list ended at 12.70. Those entries cover only part of etaHEN's compatibility needs.
-
-The prior main-branch head was 19ce374aeb808a6ccd61db6522a9cdb10ff60cb4. Git history still contains that tree for recovery and comparison.
-
-## Remaining work
-
-- [x] Pin official etaHEN 2.5B and a 13.42 source reference.
-- [x] Add and host-test the reference-derived 13.42 libhijacker profile overlay.
-- [x] Add and host-test signature classification for the modern ShellUI Boot hook.
-- [ ] Compare and adapt startup, kstuff, and dependency changes while preserving official features.
-- [x] Adapt and host-test the Toolbox route selection across all official Toolbox entry points.
-- [ ] Port and test the per-game Game Options path on source.
-- [ ] Build with the PS5 Payload SDK and record the build output.
-- [ ] Test Toolbox and per-game options on a real 13.42 console and record the result.
-
-Current status: the offset, Toolbox route, Game/App dumper pager-table, and ShellUI Boot ABI overlays are in the repository, and all four host checks pass. There is not yet a complete 13.42 payload, and no PS5 build or hardware test is included.
+See `BUILDING.md` for the target build steps and `FEATURES.md` for preservation notes.
