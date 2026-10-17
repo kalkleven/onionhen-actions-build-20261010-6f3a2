@@ -17,13 +17,18 @@ fi
 
 overlay="$repo_root/patches/13.60/debug-settings.patch"
 route_header="$upstream_repo/Source Code/include/port_toolbox_route.hpp"
+bootstrap_source="$upstream_repo/Source Code/bootstrapper/source/main.cpp"
+settings_header="$upstream_repo/Source Code/daemon/include/globalconf.hpp"
+hook_source="$upstream_repo/Source Code/shellui/src/HookFunctions.cpp"
 if grep -Fq 'pssettings:play?function=debug_settings")' "$route_header" &&
-   grep -Fq 'toolbox_card_remove_start' "$upstream_repo/Source Code/bootstrapper/source/main.cpp"; then
-  echo "13.60 Debug Settings overlay already applied."
+   grep -Fq 'toolbox_card_start' "$bootstrap_source" &&
+   grep -Fq 'StartOpts start_opt = TOOLBOX;' "$settings_header" &&
+   ! grep -Fq 'Toolbox has its own home-screen card' "$hook_source"; then
+  echo "13.60 Debug Settings and startup overlay already applied."
 else
   git -C "$upstream_repo" apply --check "$overlay"
   git -C "$upstream_repo" apply "$overlay"
-  echo "Applied the 13.60 Debug Settings and feature-preservation overlay."
+  echo "Applied the 13.60 Debug Settings and startup overlay."
 fi
 
 bash "$repo_root/scripts/test_1360_route.sh"
