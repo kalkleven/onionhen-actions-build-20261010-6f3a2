@@ -166,7 +166,7 @@ jobs:
             ./autogen.sh
             source "$PS5_PAYLOAD_SDK/toolchain/prospero.sh"
             ./configure \
-              --prefix="\${PREFIX}" \
+              --prefix="${PREFIX}" \
               --host=x86_64-pc-freebsd \
               --enable-static \
               --disable-shared \
@@ -298,7 +298,7 @@ jobs:
 
           Build provenance and payload hashes: see ci-inputs.json and BUILD-INPUTS.json in the repository and attached assets.
 
-Source: https://github.com/$GITHUB_REPOSITORY/tree/$GITHUB_SHA
+          Source: https://github.com/$GITHUB_REPOSITORY/tree/$GITHUB_SHA
           EOF
 
           gh release create "$tag" "$elf" "$manifest" "$ci_manifest" "$input_manifest" "$credits" \
