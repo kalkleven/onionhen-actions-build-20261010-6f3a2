@@ -1,16 +1,18 @@
 # etaHEN 2.5B — PS5 13.42 port workbench
 
-This repository is a clean Codex workbench for inspecting the etaHEN 2.5B source and preparing a verified 13.42 compatibility port.
+This repository is a Codex workbench for adapting etaHEN 2.5B to firmware 13.42 while preserving the upstream feature set.
 
-The upstream source is pinned as a Git submodule at etaHEN tag 2.5B, commit 5061a85312eb1d2da811269bcb9061e4b01302a1. The source is under upstream/etaHEN/Source Code.
+The official source is pinned at etaHEN tag 2.5B, commit 5061a85312eb1d2da811269bcb9061e4b01302a1, under `upstream/etaHEN/Source Code`. A separate community multi-firmware source is pinned under `references/etaHEN-13.42-reference` for compatibility research only.
 
 ## What is here
 
 - AGENTS.md: project-specific instructions for Codex
 - FEATURES.md: upstream feature checklist for your console testing
-- PORT_STATUS.md: what is known and what still needs verification for 13.42
-- scripts/codex-cloud-setup.sh: initialize the pinned source and check the build toolchain
-- upstream/etaHEN: upstream etaHEN source, pinned to 2.5B
+- PORT_STATUS.md: current evidence and remaining 13.42 work
+- PORT_REFERENCE.md: notes on the pinned 13.42 compatibility reference
+- scripts/codex-cloud-setup.sh: initialize both source repositories and check build tools
+- upstream/etaHEN: official etaHEN 2.5B source baseline
+- references/etaHEN-13.42-reference: pinned community compatibility reference
 
 ## Prepare the source
 
@@ -18,7 +20,7 @@ Clone with submodules enabled, or run:
 
     bash scripts/codex-cloud-setup.sh
 
-The script initializes the source submodule and reports whether CMake, Ninja, Clang, xz, and PS5_PAYLOAD_SDK are available. It does not download a proprietary SDK or claim that the payload is ready for hardware.
+The script initializes both source repositories and reports whether CMake, Ninja, Clang, xz, and PS5_PAYLOAD_SDK are available. It does not download a proprietary SDK or claim that the payload is ready for hardware.
 
 ## Create the Codex Cloud environment
 
@@ -30,6 +32,6 @@ Review the setup result and publish the environment. After it is published, open
 
 ## Scope and testing
 
-The feature list records what etaHEN 2.5B documents. It does not mean every feature has been ported to 13.42 or tested on a console. The port status identifies the missing Settings-bundle evidence. A 13.42 build and a real console test are still required before calling the port working.
+The checklist records features documented by official etaHEN 2.5B. The community reference contains a 13.42 firmware profile, but its own manifest marks that profile as not hardware-confirmed. No 13.42 payload build or console test is included here yet.
 
-Use the upstream project license and notices in upstream/etaHEN/LICENSE. Keep upstream changes in this workbench clearly reviewable.
+Use the upstream project license and notices in upstream/etaHEN/LICENSE. Keep compatibility changes small, attributed, and reviewable.

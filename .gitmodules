@@ -1,3 +1,7 @@
 [submodule "etaHEN"]
 	path = upstream/etaHEN
 	url = https://github.com/etaHEN/etaHEN.git
+
+[submodule "etaHEN-13.42-reference"]
+	path = references/etaHEN-13.42-reference
+	url = https://github.com/GronedWaffel/etahen-11.00-13.60.git
