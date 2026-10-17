@@ -106,7 +106,7 @@ index 81e699e..6ca5170 100644
 diff --git a/tests/mono-abi.cpp b/tests/mono-abi.cpp
 --- a/tests/mono-abi.cpp
 +++ b/tests/mono-abi.cpp
-@@ -25,7 +25,8 @@ int main(){
+@@ -25,6 +25,7 @@ int main(){
   assert(!port_toolbox_root_requested(nullptr));
   assert(!port_toolbox_root_requested(ETAHEN_TOOLBOX_URI));
   assert(!port_toolbox_root_requested("etaHEN?Cheats"));
