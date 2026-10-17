@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sdk_dir="$RUNNER_TEMP/ps5-payload-sdk"
+          unpack_dir="$RUNNER_TEMP/ps5-payload-sdk-unpack"
           archive="$RUNNER_TEMP/ps5-payload-sdk-v0.43.zip"
 
           curl --fail --location --retry 3 \
@@ -40,8 +40,23 @@ jobs:
             "https://github.com/ps5-payload-dev/sdk/releases/download/v0.43/ps5-payload-sdk.zip"
 
           echo "a9cc9929f21b2b2c5d5b309f3bab4997067c45281c0622cf4838b1aecba66fcb  $archive" | sha256sum --check -
-          unzip -q "$archive" -d "$RUNNER_TEMP"
-          test -d "$sdk_dir/include"
-          test -d "$sdk_dir/lib"
+          mkdir -p "$unpack_dir"
+          unzip -q "$archive" -d "$unpack_dir"
+
+          sdk_dir=""
+          while IFS= read -r include_dir; do
+            candidate="${include_dir%/include}"
+            if [[ -d "$candidate/lib" ]]; then
+              sdk_dir="$candidate"
+              break
+            fi
+          done < <(find "$unpack_dir" -maxdepth 6 -type d -name include -print)
+
+          if [[ -z "$sdk_dir" ]]; then
+            echo "Could not find the SDK root containing both include/ and lib/." >&2
+            find "$unpack_dir" -maxdepth 4 -type d -print >&2
+            exit 1
+          fi
+
           echo "PS5_PAYLOAD_SDK=$sdk_dir" >> "$GITHUB_ENV"
           echo "PS5 Payload SDK v0.43 is ready at $sdk_dir"
