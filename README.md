@@ -1,6 +1,6 @@
-# etaHEN 2.5B r3 — 13.60 Debug Settings route
+# etaHEN 2.5B r3 — PS5 13.60 Debug Settings Overlay
 
-This repository pins the source for the etaHEN 2.5B 13.60 r3 release and applies a small source overlay so the normal Debug Settings entry opens etaHEN Toolbox.
+Source overlay for etaHEN 2.5B r3 on PS5 firmware 13.60, routing the standard Debug Settings entry to etaHEN Toolbox and restoring selected homebrew menu entries.
 
 ## Pinned release
 
